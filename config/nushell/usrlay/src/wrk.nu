@@ -6,13 +6,7 @@ export def --env wrk [alias?: string]: nothing -> nothing {
         cp ($nu.default-config-dir | path join 'usrlay/nuon/default/work.nuon' | path expand) $nuon_dir
     }
     
-    let wrk: record<
-        default: directory,
-        dirs: table<
-            aliases: list<string>,
-            dir: directory
-        >
-    > = open $work_file
+    let wrk: record<default: directory, dirs: table<aliases: list<string>, dir: directory>> = open $work_file
 
     if ($alias | is-empty) {
         cd $wrk.default
