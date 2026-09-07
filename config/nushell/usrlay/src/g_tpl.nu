@@ -5,8 +5,9 @@ export def --env 'g new' [
     --license: string = 'default',
     --readme: string = 'default',
     --ignore: string = 'default',
+    --cfg: string = 'default',
 ]: nothing -> nothing {
-    g_new $dir --user $user --license $license --readme $readme --ignore $ignore
+    g_new $dir --user $user --license $license --readme $readme --ignore $ignore --cfg $cfg
     cd $dir
 }
 
@@ -16,6 +17,7 @@ def g_new [
     --license: string = 'default',
     --readme: string = 'default',
     --ignore: string = 'default',
+    --cfg: string = 'default',
 ]: nothing -> nothing {
     if ($dir | path exists) {
         error make --unspanned $"directory already exists: ($dir)"
@@ -25,19 +27,41 @@ def g_new [
     let license_tpl = ((dotrepo 'g/license') | tpl expand link $license)
     let readme_tpl = ((dotrepo 'g/readme') | tpl expand prefix 'README' '.md' $readme)
     let ignore_tpl = ((dotrepo 'g/ignore') | tpl expand suffix '.gitignore' $ignore)
+    let cfg_tpl = ((dotrepo 'g/cfg') | tpl expand suffix '.toml' $ignore)
+
+    let fill = { user: (git config --file $user_tpl.src 'user.name') }
+
+    let cfg = do {||
+        mut toml = open $cfg_tpl.src
+        $toml.branch.main = $toml.branch.main | from grimoire liquid $fill
+        $toml.branch.work = $toml.branch.work | from grimoire liquid $fill
+        $toml.branch.side = {|fill: record| from grimoire liquid $fill}
+        $toml
+    }
 
     mkdir $dir
     cd $dir
-    git init -q .
+    git init -q --initial-branch $cfg.branch.main .
 
     open --raw $user_tpl.src | save --append '.git/config'
 
+    touch '.gitignore'
+    git add . | ignore -xo
+    git commit -m 'init' | ignore -xo
+
+    git branch $cfg.branch.work | ignore -xo
+    git switch -q $cfg.branch.work | ignore -xo
+    
     cp $ignore_tpl.src $ignore_tpl.dst
     cp $license_tpl.src $license_tpl.dst
     cp $readme_tpl.src $readme_tpl.dst
-
     git add . | ignore -xo
-    git commit -m 'init' | ignore -xo
+    git commit -m 'init work' | ignore -xo
+
+    git switch -q $cfg.branch.main | ignore -xo
+    git merge --ff-only $cfg.branch.work | ignore -xo
+
+    git switch -q $cfg.branch.work | ignore -xo
 }
 
 def 'tpl srcdst' [dir: directory]: path -> record<src: path, dst: path> {
